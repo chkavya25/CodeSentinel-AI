@@ -842,12 +842,12 @@ document.addEventListener(
             try {
 
                 const response =
-                    await apiFetch(
-                        "/analyze",
+                 await apiFetch("/api/analyze",
                         {
                             method: "POST",
 
                             headers: {
+                               
                                 "Content-Type":
                                     "application/json"
                             },
@@ -980,8 +980,7 @@ document.addEventListener(
                 try {
 
                     const response =
-                        await apiFetch(
-                            "/run",
+                       await apiFetch("/api/run", 
                             {
 
                                 method:
@@ -1288,8 +1287,9 @@ document.addEventListener(
                 try {
 
                     const response =
-                        await apiFetch(
-                            "/chat",
+                        await apiFetch("/api/chat",
+
+                                       
                             {
 
                                 method:

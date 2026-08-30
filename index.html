@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeSentinel AI | Project Manager & Code Auditor</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --bg-main:#0b1120; --bg-panel:#1e293b; --bg-hover:#334155; --border:#334155;
+      --primary:#3b82f6; --primary-hover:#2563eb; --text-main:#f8fafc; --text-muted:#94a3b8;
+      --danger:#ef4444; --warning:#f59e0b; --success:#10b981; --info:#06b6d4;
+      --font-mono:"Fira Code",Consolas,"Courier New",monospace;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+    body{background:var(--bg-main);color:var(--text-main);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+    .navbar{height:56px;background:var(--bg-panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 1.25rem}
+    .nav-brand{display:flex;align-items:center;gap:.6rem;font-size:1.15rem;font-weight:700}.brand-icon{color:var(--primary);font-size:1.35rem}
+    .project-bar{display:flex;align-items:center;gap:.5rem;background:#0f172a;padding:.35rem .65rem;border-radius:8px;border:1px solid var(--border)}
+    .project-bar select{background:transparent;color:#38bdf8;border:none;font-weight:600;outline:none;cursor:pointer}
+    .workspace-grid{display:grid;grid-template-columns:1.3fr 1.2fr 1fr;gap:.85rem;padding:.85rem;height:calc(100vh - 56px)}
+    .panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;overflow:hidden}
+    .panel-header{padding:.65rem .9rem;background:rgba(15,23,42,.7);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+    .panel-header h2{font-size:.88rem;font-weight:600;display:flex;align-items:center;gap:.4rem}.panel-body{flex:1;padding:.85rem;overflow-y:auto}.panel-footer{padding:.65rem .9rem;border-top:1px solid var(--border);background:rgba(15,23,42,.7)}
+    .editor-wrapper{position:relative;display:flex;height:100%;background:#0f172a;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+    .line-numbers{width:48px;min-width:48px;padding:.75rem .45rem;background:#0a0f1d;color:#64748b;font-family:var(--font-mono);font-size:.85rem;line-height:1.5rem;text-align:right;user-select:none;border-right:1px solid var(--border);overflow:hidden;white-space:pre}
+    #code-input{flex:1;height:100%;padding:.75rem;background:transparent;border:none;color:#e2e8f0;font-family:var(--font-mono);font-size:.85rem;line-height:1.5rem;resize:none;outline:none;white-space:pre;overflow-y:auto;tab-size:4}
+    .lang-select-group{display:flex;align-items:center;gap:.5rem}.dropdown{background:var(--bg-main);color:var(--text-main);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;font-size:.85rem;outline:none;cursor:pointer}.dropdown:focus{border-color:var(--primary)}
+    .metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-bottom:.75rem}.metric-card{background:rgba(15,23,42,.6);border:1px solid var(--border);padding:.5rem;border-radius:6px;text-align:center}.metric-label{display:block;font-size:.7rem;color:var(--text-muted)}.metric-value{font-size:1.15rem;font-weight:700}
+    .text-danger{color:var(--danger)}.text-warning{color:var(--warning)}.text-info{color:var(--info)}
+    .issues-container h3{font-size:.78rem;color:var(--text-muted);margin-bottom:.6rem;text-transform:uppercase;letter-spacing:.05em}.issues-list{display:flex;flex-direction:column;gap:.6rem}
+    .issue-card{background:rgba(15,23,42,.8);border-left:4px solid var(--primary);border-radius:4px;padding:.65rem}.issue-card.danger{border-left-color:var(--danger)}.issue-card.warning{border-left-color:var(--warning)}.issue-card.info{border-left-color:var(--info)}
+    .issue-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.25rem}.issue-title{font-weight:600;font-size:.85rem}.issue-line{font-size:.72rem;color:#38bdf8;font-family:var(--font-mono);background:rgba(56,189,248,.1);padding:2px 6px;border-radius:4px}.issue-desc{font-size:.8rem;color:var(--text-muted);margin-bottom:.4rem}.issue-fix{background:#0b1120;padding:.4rem;border-radius:4px;font-size:.75rem;font-family:var(--font-mono);color:#38bdf8}
+    .empty-state{text-align:center;color:var(--text-muted);padding:2.5rem 1rem}.empty-state i{font-size:2rem;margin-bottom:.5rem;display:block}
+    .chat-body{display:flex;flex-direction:column;gap:.6rem}.chat-msg{display:flex;width:100%}.chat-msg.user{justify-content:flex-end}.chat-msg.bot{justify-content:flex-start}.msg-bubble{max-width:90%;padding:.55rem .8rem;border-radius:8px;font-size:.82rem;line-height:1.45;word-wrap:break-word}.chat-msg.user .msg-bubble{background:var(--primary);color:#fff}.chat-msg.bot .msg-bubble{background:var(--bg-hover);color:var(--text-main)}.chat-footer form{display:flex;gap:.4rem}#chat-input{flex:1;background:#0f172a;border:1px solid var(--border);padding:.45rem .65rem;border-radius:6px;color:var(--text-main);outline:none;font-size:.82rem}
+    .btn{display:inline-flex;align-items:center;gap:.35rem;padding:.45rem .85rem;border-radius:6px;font-size:.8rem;font-weight:500;cursor:pointer;border:none;transition:all .2s}.btn:disabled{opacity:.6;cursor:wait}.btn-primary{background:var(--primary);color:#fff;width:100%;justify-content:center}.btn-primary:hover{background:var(--primary-hover)}.btn-secondary{background:var(--bg-hover);color:var(--text-main)}.btn-secondary:hover{background:#475569}.btn-success{background:#059669;color:#fff}.btn-danger{background:#dc2626;color:#fff}.btn-sm{padding:.25rem .5rem;font-size:.72rem}
+    .badge{padding:.2rem .45rem;border-radius:10px;font-size:.7rem;font-weight:600}.badge-neutral{background:var(--border);color:var(--text-muted)}.badge-good{background:rgba(16,185,129,.2);color:var(--success)}.badge-warn{background:rgba(245,158,11,.2);color:var(--warning)}
+    .run-output{margin-top:.75rem;background:#020617;border:1px solid var(--border);border-radius:6px;padding:.7rem;min-height:90px;max-height:180px;overflow:auto;white-space:pre-wrap;font-family:var(--font-mono);font-size:.78rem;color:#cbd5e1}.run-output.running{color:#38bdf8}.run-output.success{border-color:var(--success);color:#86efac}.run-output.error{border-color:var(--danger);color:#fca5a5}
+    .ai-code{background:#020617;padding:8px;border-radius:5px;overflow-x:auto;margin:6px 0;font-family:var(--font-mono);white-space:pre}.msg-bubble code{background:#0b1120;padding:2px 4px;border-radius:3px;color:#38bdf8}
+    @media(max-width:1000px){.workspace-grid{grid-template-columns:1fr;overflow:auto;height:auto}.panel{min-height:500px}body{overflow:auto}.navbar{flex-wrap:wrap;height:auto;gap:.5rem;padding:.6rem}}
+  </style>
+</head>
+<body>
+<header class="navbar">
+  <div class="nav-brand"><i class="fa-solid fa-shield-halved brand-icon"></i><span>CodeSentinel <strong>AI</strong></span></div>
+  <div class="project-bar">
+    <i class="fa-solid fa-folder-open" style="color:#38bdf8"></i>
+    <select id="project-select"></select>
+    <button id="new-project-btn" class="btn btn-sm btn-secondary"><i class="fa-solid fa-plus"></i> New</button>
+    <button id="save-project-btn" class="btn btn-sm btn-success"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+    <button id="delete-project-btn" class="btn btn-sm btn-danger"><i class="fa-solid fa-trash"></i></button>
+  </div>
+  <div style="font-size:.8rem;color:var(--text-muted)"><span style="color:var(--success)">●</span> Online</div>
+</header>
+
+<main class="workspace-grid">
+  <section class="panel">
+    <div class="panel-header">
+      <div class="lang-select-group">
+        <select id="lang-select" class="dropdown">
+          <option value="java">Java</option><option value="python">Python</option><option value="javascript">JavaScript</option><option value="cpp">C / C++</option><option value="sql">SQL</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:.35rem"><button id="load-sample-btn" class="btn btn-sm btn-secondary">Sample</button><button id="clear-btn" class="btn btn-sm btn-secondary">Clear</button></div>
+    </div>
+    <div class="panel-body" style="padding:0">
+      <div class="editor-wrapper">
+        <div id="line-numbers" class="line-numbers">1</div>
+        <textarea id="code-input" spellcheck="false" placeholder="// Paste or write source code here..."></textarea>
+      </div>
+    </div>
+    <div class="panel-footer">
+      <div style="display:flex;gap:.5rem">
+        <button id="run-btn" class="btn btn-success" style="width:50%;justify-content:center"><i class="fa-solid fa-play"></i> Run Code</button>
+        <button id="analyze-btn" class="btn btn-primary" style="width:50%"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Analysis</button>
+      </div>
+      <div id="run-output" class="run-output">Run your code to see output here.</div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><h2><i class="fa-solid fa-chart-line"></i> Code Quality & Security</h2><span id="score-badge" class="badge badge-neutral">Score: --</span></div>
+    <div class="panel-body">
+      <div class="metrics-grid">
+        <div class="metric-card"><span class="metric-label">Vulnerabilities</span><span class="metric-value text-danger" id="vuln-count">0</span></div>
+        <div class="metric-card"><span class="metric-label">Bugs</span><span class="metric-value text-warning" id="bug-count">0</span></div>
+        <div class="metric-card"><span class="metric-label">Smells</span><span class="metric-value text-info" id="smell-count">0</span></div>
+        <div class="metric-card"><span class="metric-label">Lines</span><span class="metric-value" id="loc-count">0</span></div>
+      </div>
+      <div class="issues-container"><h3>Detected Issues & AI Recommendations</h3><div id="issues-list" class="issues-list"><div class="empty-state"><i class="fa-solid fa-code-compare"></i><p>Select a project, paste code, and run analysis.</p></div></div></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><h2><i class="fa-solid fa-robot"></i> AI Assistant</h2></div>
+    <div class="panel-body chat-body" id="chat-messages">
+      <div class="chat-msg bot"><div class="msg-bubble">Hello! Ask me about your active code, debugging, security, Java, Python, JavaScript, C/C++, SQL, algorithms, APIs, or general programming.</div></div>
+    </div>
+    <div class="panel-footer chat-footer">
+      <form id="chat-form"><input type="text" id="chat-input" placeholder="Ask AI to fix or explain..." autocomplete="off"><button type="submit" class="btn btn-primary" style="width:auto;padding:.45rem .75rem"><i class="fa-solid fa-paper-plane"></i></button></form>
+    </div>
+  </section>
+</main>
+<script src="js/app.js"></script>
+</body>
+</html>

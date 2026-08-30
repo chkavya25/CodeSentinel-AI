@@ -1,6 +1,6 @@
 
 
-const API_URL = " https://codesentinel-ai-4.onrender.com";
+const API_URL = "https://codesentinel-ai-4.onrender.com";
 /* =========================================================
    DEFAULT STARTER CODE FOR EACH LANGUAGE
    ========================================================= */

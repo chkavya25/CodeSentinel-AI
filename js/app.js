@@ -184,7 +184,7 @@ const controller =
 const timeout =
     setTimeout(
         () => controller.abort(),
-        50000
+        15000
     );
 
 try {
@@ -1067,7 +1067,7 @@ document.addEventListener(
                 }
 
 
-                await analyzeCode();
+                analyzeCode().catch(() => {});
 
 
             } catch (error) {

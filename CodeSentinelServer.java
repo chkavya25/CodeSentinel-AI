@@ -574,7 +574,7 @@ public class CodeSentinelServer {
                                 compiler.getInputStream().readAllBytes(),
                                 StandardCharsets.UTF_8);
 
-                if (!compiler.waitFor(12, TimeUnit.SECONDS)) {
+                if (!compiler.waitFor(3, TimeUnit.SECONDS)) {
                     compiler.destroyForcibly();
                     return 0;
                 }
@@ -841,7 +841,7 @@ public class CodeSentinelServer {
 
                  HttpRequest request = HttpRequest.newBuilder()
                          .uri(URI.create(endpoint))
-                         .timeout(java.time.Duration.ofSeconds(45))
+                         .timeout(java.time.Duration.ofSeconds(20))
                          .header("Content-Type", "application/json")
                          .header("Accept", "application/json")
                          .POST(HttpRequest.BodyPublishers.ofString(
@@ -1185,15 +1185,9 @@ public class CodeSentinelServer {
                                 .start();
 
 
-                String compileOut =
-                        readLimited(
-                                compile.getInputStream());
-
-
-                boolean compiled =
-                        compile.waitFor(
-                                12,
-                                TimeUnit.SECONDS)
+               String output = readLimited(
+                run.getInputStream());
+                boolean finished = run.waitFor(8,TimeUnit.SECONDS);
                                 && compile.exitValue()
                                 == 0;
 

@@ -18,7 +18,7 @@ private static final int PORT =
         Integer.parseInt(System.getenv().getOrDefault("PORT", "8080"));
 
 // Gemini model available for your API key
-private static final String GEMINI_MODEL = "gemini-3.5-flash-lite";
+private static final String GEMINI_MODEL = "gemini-3.1-flash-lite";
 private static final String[] GEMINI_FALLBACK_MODELS = {
         "gemini-3.1-flash-lite",
         "gemini-2.5-flash-lite"
@@ -1477,6 +1477,4 @@ static class CodeRunHandler
             boolean success,
             String output) {
     }
-}
-
 }

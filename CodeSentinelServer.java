@@ -30,6 +30,12 @@ public class CodeSentinelServer {
     private static final String GEMINI_API_KEY =
             System.getenv("GEMINI_API_KEY");
 
+    // Reuse the same HTTP connection pool for faster AI requests.
+    private static final HttpClient GEMINI_HTTP_CLIENT =
+            HttpClient.newBuilder()
+                    .connectTimeout(java.time.Duration.ofSeconds(8))
+                    .build();
+
 
     public static void main(String[] args) throws IOException {
 
@@ -53,6 +59,13 @@ public class CodeSentinelServer {
 
         server.createContext("/api/run",
                 new CodeRunHandler());
+
+        // Lightweight endpoint used by the frontend to wake/warm the server.
+        server.createContext("/health",
+                exchange -> sendJsonResponse(
+                        exchange,
+                        200,
+                        "{\"status\":\"ok\"}"));
 
         server.createContext("/",
                 new StaticFileHandler());
@@ -358,10 +371,10 @@ public class CodeSentinelServer {
             String[] lines =
                     code.split("\\R", -1);
 
-            // ONLY FIX: check the real Java compiler and count compiler errors as bugs.
+            // Run the real Java compiler only ONCE.
+            // The previous version compiled the same code twice, which slowed analysis.
             if ("java".equalsIgnoreCase(lang)) {
-                addJavaCompilerErrors(code, issueJson);
-                bugs += javaCompilerBugCount(code);
+                bugs += collectJavaCompilerErrors(code, issueJson);
             }
 
 
@@ -518,21 +531,6 @@ public class CodeSentinelServer {
                     json);
         }
 
-
-        // ONLY FIX: real Java compiler error detection for the Bugs counter.
-        private int javaCompilerBugCount(String code) {
-            List<String> ignored = new ArrayList<>();
-            return collectJavaCompilerErrors(code, ignored);
-        }
-
-        private void addJavaCompilerErrors(
-                String code,
-                List<String> issueJson) {
-
-            List<String> compilerIssues = new ArrayList<>();
-            collectJavaCompilerErrors(code, compilerIssues);
-            issueJson.addAll(compilerIssues);
-        }
 
         private int collectJavaCompilerErrors(
                 String code,

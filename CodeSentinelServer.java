@@ -358,10 +358,12 @@ public class CodeSentinelServer {
             String[] lines =
                     code.split("\\R", -1);
 
-            // ONLY FIX: check the real Java compiler and count compiler errors as bugs.
+            // SINGLE javac pass: collect compiler errors once and reuse them
+            // for both the issue list and the bug counter.
+            int compilerBugs = 0;
             if ("java".equalsIgnoreCase(lang)) {
-                addJavaCompilerErrors(code, issueJson);
-                bugs += javaCompilerBugCount(code);
+                compilerBugs = addJavaCompilerErrors(code, issueJson);
+                bugs += compilerBugs;
             }
 
 
@@ -496,20 +498,12 @@ public class CodeSentinelServer {
 
 
             String json =
-                    "{\"qualityScore\":"
-                            + score
-                            + ",\"vulnerabilities\":"
-                            + vulnerabilities
-                            + ",\"bugs\":"
-                            + bugs
-                            + ",\"codeSmells\":"
-                            + smells
-                            + ",\"linesOfCode\":"
-                            + lines.length
-                            + ",\"issues\":["
-                            + String.join(
-                            ",",
-                            issueJson)
+                    "{\"qualityScore\":" + score
+                            + ",\"vulnerabilities\":" + vulnerabilities
+                            + ",\"bugs\":" + bugs
+                            + ",\"codeSmells\":" + smells
+                            + ",\"linesOfCode\":" + lines.length
+                            + ",\"issues\":[" + String.join(",", issueJson)
                             + "]}";
 
             sendJsonResponse(
@@ -519,22 +513,8 @@ public class CodeSentinelServer {
         }
 
 
-        // ONLY FIX: real Java compiler error detection for the Bugs counter.
-        private int javaCompilerBugCount(String code) {
-            List<String> ignored = new ArrayList<>();
-            return collectJavaCompilerErrors(code, ignored);
-        }
-
-        private void addJavaCompilerErrors(
-                String code,
-                List<String> issueJson) {
-
-            List<String> compilerIssues = new ArrayList<>();
-            collectJavaCompilerErrors(code, compilerIssues);
-            issueJson.addAll(compilerIssues);
-        }
-
-        private int collectJavaCompilerErrors(
+        // Runs javac once, appends errors to issueJson, and returns the count.
+        private int addJavaCompilerErrors(
                 String code,
                 List<String> issueJson) {
 
@@ -631,7 +611,6 @@ public class CodeSentinelServer {
                 return count;
 
             } catch (Exception ignored) {
-                // If javac is unavailable, leave the existing analyzer unchanged.
                 return 0;
 
             } finally {
@@ -803,12 +782,18 @@ public class CodeSentinelServer {
              String code,
              String lang) throws Exception {
 
+         // LOCK the answer to the active language so the assistant always
+         // solves issues and emits corrected code in that language only.
          String fullPrompt =
                  "You are CodeSentinel AI, a fast expert programming assistant. "
-                 + "Answer coding, debugging, security, Java, Python, JavaScript, "
-                 + "C/C++, SQL, algorithms, APIs and general programming questions. "
-                 + "Be accurate and practical. If code is supplied, reason from it. "
-                 + "When giving corrected code, provide complete runnable code when practical. "
+                 + "The user is working in " + lang
+                 + ". ALWAYS solve every issue you find and write ALL corrected code strictly in "
+                 + lang + " — never mix in another language. "
+                 + "If the supplied code has bugs, syntax errors, or security problems, fix ALL of them "
+                 + "and return a complete, runnable " + lang + " solution. "
+                 + "Be accurate and practical. When you give corrected code, provide complete runnable code. "
+                 + "Answer coding, debugging, security, algorithms, APIs and general programming questions "
+                 + "always in " + lang + ". "
                  + "Language: " + lang
                  + "\n\nACTIVE CODE:\n" + code
                  + "\n\nUSER QUESTION:\n" + prompt;
@@ -893,7 +878,6 @@ public class CodeSentinelServer {
                  throw new IOException("Gemini returned no text.");
              } catch (IOException e) {
                  lastError = e;
-                 // Only fall through to another model for quota errors.
                  if (!e.getMessage().contains("quota exceeded")) {
                      throw e;
                  }
@@ -902,7 +886,6 @@ public class CodeSentinelServer {
 
          throw new IOException(
                  "All configured Gemini models are currently rate-limited. "
-                 + "Your previous 429 said to retry after about 57 seconds. "
                  + "Wait and try again, or enable billing for higher quotas. "
                  + (lastError == null ? "" : lastError.getMessage()));
      }
@@ -1079,15 +1062,20 @@ public class CodeSentinelServer {
                             case "java" ->
                                     runJava(code);
 
-                            case "python" ->
-                                    runProcess(
+                            case "python" -> {
+                                // Stream output as soon as the process emits it.
+                                yield runProcessStreaming(
                                             code,
-                                            "python");
+                                            "python",
+                                            ".py");
+                            }
 
-                            case "javascript" ->
-                                    runProcess(
+                            case "javascript" -> {
+                                yield runProcessStreaming(
                                             code,
-                                            "node");
+                                            "node",
+                                            ".js");
+                            }
 
                             case "cpp" ->
                                     runCpp(code);
@@ -1191,7 +1179,6 @@ public class CodeSentinelServer {
                         readLimited(
                                 compile.getInputStream());
 
-
                 boolean compiled =
                         compile.waitFor(
                                 12,
@@ -1216,7 +1203,6 @@ public class CodeSentinelServer {
                                 dir.toString(),
                                 className);
 
-                // Prevent JAVA_TOOL_OPTIONS from appearing in program output.
                 runBuilder.environment().remove("JAVA_TOOL_OPTIONS");
 
                 Process run =
@@ -1228,7 +1214,6 @@ public class CodeSentinelServer {
                 String output =
                         readLimited(
                                 run.getInputStream());
-
 
                 boolean finished =
                         run.waitFor(
@@ -1276,6 +1261,92 @@ public class CodeSentinelServer {
             return m.group(1) != null
                     ? m.group(1)
                     : m.group(2);
+        }
+
+
+        // Streams process stdout so interpreted languages (python/node)
+        // return output as soon as it is available instead of buffering
+        // everything until process exit.
+        private RunResult runProcessStreaming(
+                String code,
+                String executable,
+                String suffix)
+                throws Exception {
+
+            Path file =
+                    Files.createTempFile(
+                            "codesentinel-",
+                            suffix);
+
+            try {
+
+                Files.writeString(
+                        file,
+                        code,
+                        StandardCharsets.UTF_8);
+
+
+                Process p =
+                        new ProcessBuilder(
+                                executable,
+                                file.toString())
+                                .redirectErrorStream(true)
+                                .start();
+
+
+                StringBuilder out =
+                        new StringBuilder();
+
+                try (BufferedReader reader =
+                             new BufferedReader(
+                                     new InputStreamReader(
+                                             p.getInputStream(),
+                                             StandardCharsets.UTF_8))) {
+
+                    String line;
+
+                    while ((line = reader.readLine()) != null) {
+
+                        out.append(line).append('\n');
+
+                        // Stop early if we already exceeded the limit.
+                        if (out.length() > 20000) {
+                            p.destroyForcibly();
+                            break;
+                        }
+                    }
+                }
+
+
+                boolean finished =
+                        p.waitFor(
+                                8,
+                                TimeUnit.SECONDS);
+
+
+                if (!finished) {
+
+                    p.destroyForcibly();
+
+                    return new RunResult(
+                            false,
+                            "Execution timed out (8 seconds).");
+                }
+
+
+                String output =
+                        out.toString().stripTrailing();
+
+                return new RunResult(
+                        p.exitValue() == 0,
+                        output.isBlank()
+                                ? "Program finished with no output."
+                                : output);
+
+            } finally {
+
+                Files.deleteIfExists(file);
+            }
         }
 
 
@@ -1380,7 +1451,6 @@ public class CodeSentinelServer {
                         readLimited(
                                 compile.getInputStream());
 
-
                 if (!compile.waitFor(
                         12,
                         TimeUnit.SECONDS)
@@ -1403,7 +1473,6 @@ public class CodeSentinelServer {
                 String output =
                         readLimited(
                                 run.getInputStream());
-
 
                 if (!run.waitFor(
                         8,

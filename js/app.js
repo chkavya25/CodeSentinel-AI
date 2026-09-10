@@ -1,7 +1,4 @@
-
-
-
-const API_URL = " https://codesentinel-ai-6.onrender.com";
+const API_URL = "https://codesentinel-ai-4.onrender.com";
 /* =========================================================
    DEFAULT STARTER CODE FOR EACH LANGUAGE
    ========================================================= */
@@ -13,7 +10,6 @@ const defaultCode = {
 def main():
     # Write your code here
     print("Hello, World!")
-
 
 if __name__ == "__main__":
     main()
@@ -206,6 +202,106 @@ async function apiFetch(path, options = {}) {
 }
 
 
+/* =========================================================
+   COPY TEXT TO CLIPBOARD
+   ========================================================= */
+async function copyToClipboard(text, button) {
+
+    const cleanText = decodeCodeText(text);
+
+    try {
+
+        await navigator.clipboard.writeText(cleanText);
+
+    } catch (_) {
+
+        const textarea =
+            document.createElement("textarea");
+
+        textarea.value = cleanText;
+
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        textarea.style.top = "0";
+        textarea.style.whiteSpace = "pre";
+
+        document.body.appendChild(textarea);
+
+        textarea.focus();
+        textarea.select();
+
+        try {
+            document.execCommand("copy");
+        } catch (_) {
+            // ignore
+        }
+
+        document.body.removeChild(textarea);
+    }
+
+    if (button) {
+
+        const original =
+            button.innerHTML;
+
+        button.classList.add("copied");
+
+        button.innerHTML =
+            '<i class="fa-solid fa-check"></i> Copied';
+
+        setTimeout(() => {
+
+            button.classList.remove("copied");
+            button.innerHTML = original;
+
+        }, 1800);
+    }
+}
+/* =========================================================
+   DECODE CODE WITHOUT DESTROYING FORMATTING
+   Converts literal Unicode escapes such as \u003c / \u003e
+   back to < / > while preserving all newlines and indentation.
+   ========================================================= */
+
+function decodeCodeText(text) {
+
+    if (text === null || text === undefined) {
+        return "";
+    }
+
+    return String(text)
+
+        // Fix Unicode codes used for < > =
+        // Handles both \u003c and u003c
+        .replace(/\\?u003c/gi, "<")
+        .replace(/\\?u003e/gi, ">")
+        .replace(/\\?u003d/gi, "=")
+
+        // Decode other Unicode escape sequences.
+        .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) =>
+            String.fromCharCode(
+                parseInt(hex, 16)
+            )
+        );
+
+    /*
+     * IMPORTANT:
+     *
+     * DO NOT convert:
+     *
+     * \n
+     * \t
+     * \r
+     *
+     * into real characters here.
+     *
+     * They must remain inside Java strings:
+     *
+     * System.out.println("\nHello");
+     *
+     * Otherwise Java compilation will fail.
+     */
+}
 /* =========================================================
    MAIN APPLICATION
    ========================================================= */
@@ -848,7 +944,6 @@ document.addEventListener(
                             method: "POST",
 
                             headers: {
-                               
                                 "Content-Type":
                                     "application/json"
                             },
@@ -981,7 +1076,7 @@ document.addEventListener(
                 try {
 
                     const response =
-                       await apiFetch("/api/run", 
+                       await apiFetch("/api/run",
                             {
 
                                 method:
@@ -1002,11 +1097,6 @@ document.addEventListener(
                         );
 
 
-                    /*
-                     * FIX:
-                     * Check server status before JSON parsing.
-                     */
-
                     if (!response.ok) {
 
                         const errorText =
@@ -1019,12 +1109,6 @@ document.addEventListener(
                         );
                     }
 
-
-                    /*
-                     * FIX:
-                     * Prevent "Unexpected token '<'"
-                     * when server sends HTML.
-                     */
 
                     const contentType =
                         response.headers.get("content-type")
@@ -1147,7 +1231,6 @@ document.addEventListener(
 
 
             issuesList.innerHTML = "";
-
 
             if (!data.issues?.length) {
 
@@ -1277,7 +1360,6 @@ document.addEventListener(
 
                 chatInput.value = "";
 
-
                 const typingId =
                     appendChatMessage(
                         "bot",
@@ -1290,7 +1372,6 @@ document.addEventListener(
                     const response =
                         await apiFetch("/api/chat",
 
-                                       
                             {
 
                                 method:
@@ -1428,6 +1509,37 @@ document.addEventListener(
 
                 bubble.innerHTML =
                     html;
+
+                // Wire up the Copy button on every code block
+                // the AI assistant just returned.
+                bubble
+                    .querySelectorAll(".ai-code")
+                    .forEach(block => {
+
+                        const code =
+                            block.querySelector("code");
+
+                        if (!code) {
+                            return;
+                        }
+
+                        const copyBtn =
+                            block.querySelector(
+                                ".copy-code-btn"
+                            );
+
+                        if (copyBtn) {
+
+                            copyBtn.addEventListener(
+                                "click",
+                                () =>
+                                    copyToClipboard(
+                                        code.textContent,
+                                        copyBtn
+                                    )
+                            );
+                        }
+                    });
             }
 
 
@@ -1463,39 +1575,117 @@ document.addEventListener(
 
         /* =====================================================
            MARKDOWN FORMATTER
+           Adds a Copy button to every fenced code block so the
+           user can copy AI-generated code with one click.
            ===================================================== */
 
-        function formatMarkdown(
-            text
-        ) {
+        /* =====================================================
+   MARKDOWN FORMATTER
+   Adds a Copy button to every fenced code block.
+   ===================================================== */
 
-            let safe =
-                escapeHtml(text);
+/* =====================================================
+   MARKDOWN FORMATTER
+   Properly renders AI code blocks with Copy button.
+   ===================================================== */
 
+function formatMarkdown(text) {
 
-            safe =
-                safe.replace(
-                    /```([a-zA-Z0-9+#-]*)\n([\s\S]*?)```/g,
+    if (text === null || text === undefined) {
+        return "";
+    }
 
-                    (_, lang, code) =>
+    // Convert u003c / u003e / u003d without changing \n
+    // inside Java strings.
+    const decodedText = decodeCodeText(text);
 
-                        `<pre class="ai-code"><code>${code}</code></pre>`
-                );
+    const codeBlocks = [];
 
+    /*
+     * Match:
+     *
+     * ```java
+     * code...
+     * ```
+     *
+     * Also supports Windows CRLF line endings.
+     */
+    let safe = escapeHtml(decodedText);
 
-            safe =
-                safe.replace(
-                    /`([^`]+)`/g,
-                    "<code>$1</code>"
-                );
+    safe = safe.replace(
+        /```([a-zA-Z0-9+#._-]*)\s*\r?\n([\s\S]*?)\r?\n?```/g,
+        function (_, language, code) {
 
+            // Remove only the extra newline immediately before
+            // the closing ``` marker.
+            code = code.replace(/\r?\n$/, "");
 
-            return safe.replace(
-                /\n/g,
-                "<br>"
+            const index = codeBlocks.length;
+
+            codeBlocks.push(
+                `<pre class="ai-code"><button type="button" class="copy-code-btn"><i class="fa-solid fa-copy"></i> Copy</button><code>${code}</code></pre>`
             );
-        }
 
+            return `___CODESENTINEL_CODE_BLOCK_${index}___`;
+        }
+    );
+
+    /*
+     * Handle code fences even when there is no language:
+     *
+     * ```
+     * code
+     * ```
+     */
+    safe = safe.replace(
+        /```\s*\r?\n([\s\S]*?)\r?\n?```/g,
+        function (_, code) {
+
+            code = code.replace(/\r?\n$/, "");
+
+            const index = codeBlocks.length;
+
+            codeBlocks.push(
+                `<pre class="ai-code"><button type="button" class="copy-code-btn"><i class="fa-solid fa-copy"></i> Copy</button><code>${code}</code></pre>`
+            );
+
+            return `___CODESENTINEL_CODE_BLOCK_${index}___`;
+        }
+    );
+
+    /*
+     * Inline code.
+     */
+    safe = safe.replace(
+        /`([^`\n]+)`/g,
+        "<code>$1</code>"
+    );
+
+    /*
+     * Convert normal AI text newlines to <br>.
+     *
+     * Code blocks are placeholders at this point,
+     * so their formatting is NOT affected.
+     */
+    safe = safe.replace(
+        /\r?\n/g,
+        "<br>"
+    );
+
+    /*
+     * Restore actual code blocks.
+     */
+    codeBlocks.forEach(function (block, index) {
+
+        safe = safe.replace(
+            `___CODESENTINEL_CODE_BLOCK_${index}___`,
+            block
+        );
+
+    });
+
+    return safe;
+}
 
         /* =====================================================
            INITIALIZE
